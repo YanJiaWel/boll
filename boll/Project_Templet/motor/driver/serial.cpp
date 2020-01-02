@@ -38,7 +38,10 @@ bool Serial::openPort()
 		std::cout<<"CreateFile false"<<endl;
 		return false;
 	}
-	SetupComm(_hcom,8,8); 
+	SetupComm(_hcom,8,8); //该函数初始化一个指定的通信设备的通信参数。hFile [IN]通讯设备句柄。CreateFile函数返回此句柄。
+		//dwInQueue[in]指定推荐的大小，以字节为单位，对设备的内部输入缓冲区。
+		//dwOutQueue[in]指定推荐的大小，以字节为单位，对设备的内部输出缓冲区。
+		//返回值非零表示成功。零表示失败。
 	COMMTIMEOUTS TimeOuts;
 	TimeOuts.ReadTotalTimeoutConstant=200;
 	TimeOuts.WriteTotalTimeoutMultiplier=500;
