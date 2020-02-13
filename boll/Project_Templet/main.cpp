@@ -7,6 +7,7 @@
 #include "motor/motor.h"
 #include "pid/pid.h"
 #include "gamepad/gamepad.h"
+#pragma warning(disable:4996)
 using namespace cv;
 using namespace std;
 
@@ -19,6 +20,11 @@ void changecontrolmode(void);
 DWORD WINAPI gamepaddata(LPVOID lpParameter);
 void nine_dot_data(void);
 void calecriclepos(void);
+
+/*界面控制函数声明*/
+void winmod_func(void);
+DWORD WINAPI read_file(LPVOID lpParameter); //读取文件内容线程  
+
 
 
 const char font_S[100] =
@@ -60,8 +66,8 @@ bool res2;
 int iii = 0;
 /*手柄控制模式*/
 enum  movemode  {redposcontrol,gamepadcontrol,staycenter,automove,spinmode, winmod,ninemode} ; //红点跟随模式、游戏手柄控制、定点中心模式、正方形模式、转圈模式、窗口界面控制小球位置、九个点依次定点模式
-enum movemode myballcontrol= staycenter;  //默认定在中心
-
+//enum movemode myballcontrol= staycenter;  //默认定在中心
+enum movemode myballcontrol = winmod;
 Mat frame;
 int main(void)
 {
@@ -85,8 +91,8 @@ int main(void)
 		cout << "motor1 open success" << endl;
 	}
 	/*usb摄像头初始化*/
-	//MyCamera my_camera(LOCAL_CAP); 
-	MyCamera my_camera(USB_CAP);
+	MyCamera my_camera(LOCAL_CAP); 
+	//MyCamera my_camera(USB_CAP);
 	if (my_camera.IsOpen())
 	{
 		cout << "my_camera open success!" << endl;
@@ -108,7 +114,7 @@ int main(void)
 	ball.exchange_value_y = k2;
 	/*多线程获取手柄数据*/
 	HANDLE onethr= CreateThread(NULL, 0, gamepaddata, NULL, 0, NULL);
-	//HANDLE onethr1 = CreateThread(NULL, 0, nine_dot_data, NULL, 0, NULL);
+	HANDLE onethr1 = CreateThread(NULL, 0,read_file, NULL, 0, NULL);
 	cout << "起始8" << endl;
 	while (1)
 	{
@@ -184,9 +190,11 @@ int main(void)
 
 		/*更新控制模式*/
 		changecontrolmode();
-		nine_dot_data();
+		//nine_dot_data();					//界面控制小球---OpenCV画图实现
+		winmod_func();						//界面控制小球---MFC小程序实现
 		//show_char_func((char *)font_S,0);//写着玩的函数，画面上用矩形打印出字符
 		//show_char_func((char *)font_B,1);
+		cout << "控制模式" << myballcontrol << endl;
 		imshow("show1", frame);	
 		waitKey(1);
 	}
@@ -278,7 +286,7 @@ void changecontrolmode(void)
 		calecriclepos();
 		break;
 	case winmod:
-		finepos = winpos;
+		finepos = winpos;			/*界面控制模式*/
 		break;
 	case ninemode:
 		static time_t nine_lasttime = clock();
@@ -547,7 +555,7 @@ void nine_dot_data(void)
 #define SHOW_CHAR_OFFSET 40
 #define POW_N 10    //一边放大倍数
 
-
+/*写着玩的函数，汉字或者字母取模后，用小方框依次画出来*/
 void show_char_func(char *ch,int n)
 {
 	int i = 0, j = 0,k=0;
@@ -592,4 +600,90 @@ void show_char_func(char *ch,int n)
 	//rectangle(frame, Point(20,20), Point(200,200), Scalar(0,0,255));
 }
 
+
+/*通过调用MFC写的.exe程序来进行界面控制效果*/
+/*界面控制1---调用.exe并向文件写入数据*/
+void winmod_func(void)
+{
+	if (myballcontrol != winmod)
+		return;
+	FILE *fp = fopen("E:\\boll\\temp_file.txt", "w");
+	fwrite("5-this_5", 8, 1, fp);   //未写入任何新数据的初始化数据 
+	fclose(fp);
+	int a = system("D:\\C_code\\VScode\\MFC板球界面\\Debug\\MFC板球界面.exe");   //返回值为2
+	if(a == 2)
+		myballcontrol = staycenter;
+	return;
+}
+
+/*界面控制2----读取文件内容线程并执行响应操作*/
+/*
+	文件内容 1-9个点  ：1-this-1 ~ 9-this-9
+			 四个模式：10 中心定点
+					   11 矩形运动
+					   12 圆周运动
+					   13 红点追踪
+*/
+DWORD WINAPI read_file(LPVOID lpParameter)   //void read_file(void)
+{
+	char buff[20] = {0};
+	int c = 0;
+	int d = 0;
+	waitKey(1000); //防止读取到上一次的数据
+	while (1)
+	{
+		if (myballcontrol == winmod)
+		{
+			if (d == 1)
+				waitKey(500);
+			/*读取数据*/
+			FILE *fp = fopen("E:\\boll\\temp_file.txt", "r");
+			fread(buff, 20, 1, fp);
+			fclose(fp);
+			/*对读取到的数据进程解析和处理*/
+			c = atoi(buff);
+			switch (c)
+			{
+			case 1:
+			case 2:
+			case 3:
+			case 4:
+			case 5:
+			case 6:
+			case 7:
+			case 8:
+			case 9:
+				winpos.x = win_x[c-1];
+				winpos.y = win_y[c-1];
+				break;
+			case 10:
+				myballcontrol = staycenter;
+				break;
+			case 11:
+				myballcontrol = automove;
+				break;
+			case 12:
+				myballcontrol = spinmode;
+				break;
+			case 13:
+				myballcontrol = redposcontrol;
+				break;
+			default:
+				break;
+			}
+			/*1.坐标变化*/
+			/*2.控制模式变化*/
+			cout << "读取的文件数据 " << buff << "c : " << c << endl;
+			c = 0;
+			d = 0;
+			memset(buff, 0, 20);
+			waitKey(10);
+		}
+		else
+		{
+			d = 1;
+		}
+	}
+	return 0;
+}
 
