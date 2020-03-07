@@ -263,7 +263,7 @@ DWORD WINAPI gamepaddata(LPVOID lpParameter)
 	return 0;
 }
 
-
+/*控制模式改变处理函数*/
 void changecontrolmode(void)
 {
 	char str[20];
@@ -314,6 +314,7 @@ void changecontrolmode(void)
 	static double backupKi = xpid.Ki;
 	(myballcontrol == spinmode) ? xpid.Ki = ypid.Ki = 0 : xpid.Ki = ypid.Ki=backupKi; /*圆周运动不需内环积分*/
 }
+
 
 
 double xcriclecos[360] = {
@@ -426,9 +427,11 @@ void calecriclepos(void)  //计算坐标
 }
 
 
+#if 1   //OpenCV界面控制小球
+
 static Point tmp = { 200, 200 };
 static int j = 4;
-/* 点击鼠标执行 */
+/* 点击鼠标执行:Opencv界面鼠标点击坐标捕捉 */
 void OnMouse_CallBack(int event, int x, int y, int flags, void *param)
 {
 	if (event == CV_EVENT_LBUTTONDOWN)
@@ -551,6 +554,8 @@ void nine_dot_data(void)
 	else return;
 
 }
+#endif
+
 
 #define SHOW_CHAR_OFFSET 40
 #define POW_N 10    //一边放大倍数
@@ -601,18 +606,24 @@ void show_char_func(char *ch,int n)
 }
 
 
+
+static int once = 0;   //保证只打开一次.exe程序
 /*通过调用MFC写的.exe程序来进行界面控制效果*/
 /*界面控制1---调用.exe并向文件写入数据*/
 void winmod_func(void)
 {
 	if (myballcontrol != winmod)
 		return;
-	FILE *fp = fopen("E:\\boll\\temp_file.txt", "w");
-	fwrite("5-this_5", 8, 1, fp);   //未写入任何新数据的初始化数据 
-	fclose(fp);
-	int a = system("D:\\C_code\\VScode\\MFC板球界面\\Debug\\MFC板球界面.exe");   //返回值为2
-	if(a == 2)
-		myballcontrol = staycenter;
+	if (once == 0)
+	{
+		FILE *fp = fopen("E:\\boll\\temp_file.txt", "w");
+		fwrite("5-this_5", 8, 1, fp);   //未写入任何新数据的初始化数据 
+		fclose(fp);
+		int a = system("D:\\C_code\\VScode\\MFC板球界面\\Debug\\MFC板球界面.exe");   //返回值为2
+		if (a == 2)
+			myballcontrol = staycenter;
+		once++;
+	}
 	return;
 }
 
@@ -628,7 +639,10 @@ DWORD WINAPI read_file(LPVOID lpParameter)   //void read_file(void)
 {
 	char buff[20] = {0};
 	int c = 0;
-	int d = 0;
+	int d = 0; 
+	char s1[3] = { 0 };
+	char s2[3] = { 0 };
+	int x1, y1;
 	waitKey(1000); //防止读取到上一次的数据
 	while (1)
 	{
@@ -653,20 +667,36 @@ DWORD WINAPI read_file(LPVOID lpParameter)   //void read_file(void)
 			case 7:
 			case 8:
 			case 9:
-				winpos.x = win_x[c-1];
-				winpos.y = win_y[c-1];
+				winpos.x = win_x[(c-1)/3];
+				winpos.y = win_y[(c-1)%3];
 				break;
 			case 10:
 				myballcontrol = staycenter;
+				once = 0;
 				break;
 			case 11:
 				myballcontrol = automove;
+				once = 0;
 				break;
 			case 12:
 				myballcontrol = spinmode;
+				once = 0;
 				break;
 			case 13:
 				myballcontrol = redposcontrol;
+				once = 0;
+				break;
+			case 14:
+				memset(s1, 0, 3);
+				memset(s2, 0, 3);
+				x1 = 0;
+				y1 = 0;
+				strncpy(s1,buff+3,3);
+				strncpy(s2, buff + 7, 3);
+				x1 = atoi(s1);
+				y1 = atoi(s2);
+				winpos.x = x1;
+				winpos.y = y1;
 				break;
 			default:
 				break;
@@ -676,6 +706,7 @@ DWORD WINAPI read_file(LPVOID lpParameter)   //void read_file(void)
 			cout << "读取的文件数据 " << buff << "c : " << c << endl;
 			c = 0;
 			d = 0;
+			cout << "x:"<<winpos.x << "y:" << winpos.y << endl;
 			memset(buff, 0, 20);
 			waitKey(10);
 		}
